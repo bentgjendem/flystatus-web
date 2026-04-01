@@ -45,6 +45,7 @@ Regler:
 - Eksempel kansellert: "Widerøe WF163 er kansellert."
 - Avgangstid fra Oslo: nevn kun hvis brukeren spør eller ved forsinkelse.
 - Vær konkret og kortfattet. Unngå unødvendig prating.
+- Bruk aldri markdown-formatering (ingen stjerner, ingen fet skrift, ingen lister med bindestrek).
 - Kun OSL→BGO støttes foreløpig.`;
 
 type Message = { role: "user" | "assistant"; content: string };
