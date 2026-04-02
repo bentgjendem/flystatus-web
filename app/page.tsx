@@ -18,7 +18,6 @@ function FlightRouteHeader({ weather }: { weather: Weather | null }) {
   return (
     <div className="route-header">
       <div className="airport airport-left">
-        <div className="airport-icon">🏙️</div>
         <div className="airport-code">OSL</div>
         <div className="airport-name">Oslo</div>
         <div className="airport-weather">
@@ -49,7 +48,6 @@ function FlightRouteHeader({ weather }: { weather: Weather | null }) {
       </div>
 
       <div className="airport airport-right">
-        <div className="airport-icon">🏔️</div>
         <div className="airport-code">BGO</div>
         <div className="airport-name">Bergen</div>
         <div className="airport-weather">
