@@ -8,6 +8,7 @@ const HINTS = [
   "Er flyet fra Oslo til Bergen i rute?",
   "Er SAS-flyet i rute?",
   "Hva med Norwegian?",
+  "Alle SAS",
   "Er Widerøe-flyet i rute?",
 ];
 
