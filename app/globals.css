@@ -73,6 +73,14 @@ body {
 
 .airport-icon { font-size: 1.4rem; line-height: 1; margin-top: 2px; }
 
+.airport-weather {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
 .route-middle {
   flex: 1;
   display: flex;

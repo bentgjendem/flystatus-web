@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, FormEvent } from "react";
+import { hentVaer, WeatherInfo } from "@/lib/weather";
 
 type Message = { role: "user" | "assistant"; content: string };
+type Weather = { oslo: WeatherInfo; bergen: WeatherInfo };
 
 const HINTS = [
   "Er flyet fra Oslo til Bergen i rute?",
@@ -12,13 +14,16 @@ const HINTS = [
   "Er Widerøe-flyet i rute?",
 ];
 
-function FlightRouteHeader() {
+function FlightRouteHeader({ weather }: { weather: Weather | null }) {
   return (
     <div className="route-header">
       <div className="airport airport-left">
         <div className="airport-icon">🏙️</div>
         <div className="airport-code">OSL</div>
         <div className="airport-name">Oslo</div>
+        <div className="airport-weather">
+          {weather ? `${weather.oslo.icon} ${weather.oslo.temp}°` : "…"}
+        </div>
       </div>
 
       <div className="route-middle">
@@ -47,6 +52,9 @@ function FlightRouteHeader() {
         <div className="airport-icon">🏔️</div>
         <div className="airport-code">BGO</div>
         <div className="airport-name">Bergen</div>
+        <div className="airport-weather">
+          {weather ? `${weather.bergen.icon} ${weather.bergen.temp}°` : "…"}
+        </div>
       </div>
     </div>
   );
@@ -56,7 +64,12 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [weather, setWeather] = useState<Weather | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    hentVaer().then(setWeather).catch(() => {});
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -92,7 +105,7 @@ export default function Home() {
 
   return (
     <div className="card">
-      <FlightRouteHeader />
+      <FlightRouteHeader weather={weather} />
       <div className="card-header">
         <h1>✈️ Flystatus Oslo → Bergen</h1>
         <p>Viser fly 30 min tilbake og 90 min frem</p>
