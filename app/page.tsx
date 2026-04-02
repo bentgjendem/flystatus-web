@@ -11,6 +11,46 @@ const HINTS = [
   "Er Widerøe-flyet i rute?",
 ];
 
+function FlightRouteHeader() {
+  return (
+    <div className="route-header">
+      <div className="airport airport-left">
+        <div className="airport-icon">🏙️</div>
+        <div className="airport-code">OSL</div>
+        <div className="airport-name">Oslo</div>
+      </div>
+
+      <div className="route-middle">
+        <svg className="route-svg" viewBox="0 0 300 80" preserveAspectRatio="none">
+          <path
+            d="M 20 60 Q 150 -10 280 60"
+            fill="none"
+            stroke="rgba(255,255,255,0.3)"
+            strokeWidth="1.5"
+            strokeDasharray="6 5"
+          />
+          <text fontSize="22" textAnchor="middle" fill="white" style={{filter:"drop-shadow(0 0 5px rgba(255,200,50,0.8))"}}>
+            ✈
+            <animateMotion
+              dur="5s"
+              repeatCount="indefinite"
+              path="M 20 60 Q 150 -10 280 60"
+              rotate="auto"
+            />
+          </text>
+        </svg>
+        <div className="route-label">ca. 45 min</div>
+      </div>
+
+      <div className="airport airport-right">
+        <div className="airport-icon">🏔️</div>
+        <div className="airport-code">BGO</div>
+        <div className="airport-name">Bergen</div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -51,6 +91,7 @@ export default function Home() {
 
   return (
     <div className="card">
+      <FlightRouteHeader />
       <div className="card-header">
         <h1>✈️ Flystatus Oslo → Bergen</h1>
         <p>Viser fly 30 min tilbake og 90 min frem</p>
@@ -88,7 +129,7 @@ export default function Home() {
           autoFocus
         />
         <button type="submit" disabled={loading || !input.trim()}>
-          Send
+          Send ✈
         </button>
       </form>
     </div>

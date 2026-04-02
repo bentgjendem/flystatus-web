@@ -29,6 +29,23 @@ function fmtOslo(date: Date | null): string {
   });
 }
 
+/** Beregn hvor mange timer siden og til midnatt Oslo-tid, for å dekke hele dagen. */
+function dagensTimevindu(): { timeFrom: number; timeTo: number } {
+  const now = new Date();
+  const osloMidnatt = new Date(
+    now.toLocaleDateString("sv-SE", { timeZone: OSLO_TZ }) + "T00:00:00"
+  );
+  // Midnatt i Oslo som UTC
+  const osloOffset = now.getTime() - new Date(now.toLocaleString("en-US", { timeZone: OSLO_TZ })).getTime();
+  const midnattUtc = new Date(osloMidnatt.getTime() - osloOffset);
+  const neste_midnattUtc = new Date(midnattUtc.getTime() + 24 * 60 * 60 * 1000);
+
+  const timeFrom = Math.ceil((now.getTime() - midnattUtc.getTime()) / 3600000) + 1;
+  const timeTo = Math.ceil((neste_midnattUtc.getTime() - now.getTime()) / 3600000) + 1;
+
+  return { timeFrom, timeTo };
+}
+
 async function fetchXml(params: Record<string, string>) {
   const url = new URL(AVINOR_URL);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -42,8 +59,13 @@ function toArray<T>(val: T | T[] | undefined): T[] {
   return Array.isArray(val) ? val : [val];
 }
 
-async function hentBgoAnkomsttider(): Promise<Record<string, string>> {
-  const data = await fetchXml({ airport: "BGO", TimeFrom: "1", TimeTo: "6", direction: "A" });
+async function hentBgoAnkomsttider(timeFrom: number, timeTo: number): Promise<Record<string, string>> {
+  const data = await fetchXml({
+    airport: "BGO",
+    TimeFrom: String(timeFrom),
+    TimeTo: String(timeTo),
+    direction: "A",
+  });
   const map: Record<string, string> = {};
   for (const f of toArray(data?.airport?.flights?.flight)) {
     if (f?.airport === "OSL" && f?.flight_id && f?.schedule_time) {
@@ -64,11 +86,12 @@ export interface FlightInfo {
   ny_tid: string | null;
   via: string | null;
   gate: string | null;
+  i_tidsvindu: boolean; // true = innenfor 30 min tilbake / 90 min frem
 }
 
 export interface FlightResult {
-  antall: number;
-  fly: FlightInfo[];
+  fly_nå: FlightInfo[];       // innenfor 30/90-minuttersvinduet
+  alle_fly_dag: FlightInfo[]; // alle avganger OSL→BGO i dag
   tilgjengelige_flyselskaper: string[];
   tidspunkt: string;
   vindu: string;
@@ -80,18 +103,25 @@ export async function hentFlystatus(flyselskap?: string): Promise<FlightResult> 
   const vinduStart = new Date(now.getTime() - 30 * 60 * 1000);
   const vinduSlutt = new Date(now.getTime() + 90 * 60 * 1000);
 
+  const { timeFrom, timeTo } = dagensTimevindu();
+
   let bgoAnkomster: Record<string, string> = {};
   let departures;
 
   try {
     [bgoAnkomster, departures] = await Promise.all([
-      hentBgoAnkomsttider(),
-      fetchXml({ airport: "OSL", TimeFrom: "1", TimeTo: "6", direction: "D" }),
+      hentBgoAnkomsttider(timeFrom, timeTo),
+      fetchXml({
+        airport: "OSL",
+        TimeFrom: String(timeFrom),
+        TimeTo: String(timeTo),
+        direction: "D",
+      }),
     ]);
   } catch (e) {
     return {
-      antall: 0,
-      fly: [],
+      fly_nå: [],
+      alle_fly_dag: [],
       tilgjengelige_flyselskaper: [],
       tidspunkt: fmtOslo(now),
       vindu: "",
@@ -99,7 +129,7 @@ export async function hentFlystatus(flyselskap?: string): Promise<FlightResult> 
     };
   }
 
-  const flights: FlightInfo[] = [];
+  const alle: FlightInfo[] = [];
 
   for (const f of toArray(departures?.airport?.flights?.flight)) {
     if (f?.airport !== "BGO") continue;
@@ -108,7 +138,7 @@ export async function hentFlystatus(flyselskap?: string): Promise<FlightResult> 
     if (!AIRLINE_NAMES[airlineCode]) continue;
 
     const schedDt = parseUtc(f?.schedule_time);
-    if (!schedDt || schedDt < vinduStart || schedDt > vinduSlutt) continue;
+    if (!schedDt) continue;
 
     const statusCode: string = f?.status?.["@_code"] ?? "";
     const statusTimeRaw: string | undefined = f?.status?.["@_time"];
@@ -121,8 +151,9 @@ export async function hentFlystatus(flyselskap?: string): Promise<FlightResult> 
         : null;
 
     const ankomstRaw = f?.flight_id ? bgoAnkomster[f.flight_id] : undefined;
+    const iVindu = schedDt >= vinduStart && schedDt <= vinduSlutt;
 
-    flights.push({
+    alle.push({
       rutenummer: f?.flight_id ?? "-",
       flyselskap: AIRLINE_NAMES[airlineCode],
       planlagt_avgang: fmtOslo(schedDt),
@@ -130,23 +161,25 @@ export async function hentFlystatus(flyselskap?: string): Promise<FlightResult> 
       kansellert: statusCode === "C",
       forsinket: delayed === "Y" || (delayMin !== null && delayMin > 0),
       forsinkelse_minutter: delayMin && delayMin > 0 ? delayMin : null,
-      ny_tid: statusDt && statusDt.getTime() !== schedDt?.getTime() ? fmtOslo(statusDt) : null,
+      ny_tid: statusDt && statusDt.getTime() !== schedDt.getTime() ? fmtOslo(statusDt) : null,
       via: f?.via_airport ?? null,
       gate: f?.gate ?? null,
+      i_tidsvindu: iVindu,
     });
   }
 
-  flights.sort((a, b) => a.planlagt_avgang.localeCompare(b.planlagt_avgang));
+  alle.sort((a, b) => a.planlagt_avgang.localeCompare(b.planlagt_avgang));
 
-  const filtered = flyselskap
-    ? flights.filter((f) => f.flyselskap.toLowerCase() === flyselskap.toLowerCase())
-    : flights;
+  const filtrert = flyselskap
+    ? alle.filter((f) => f.flyselskap.toLowerCase() === flyselskap.toLowerCase())
+    : alle;
 
-  const tilgjengelige = [...new Set(flights.map((f) => f.flyselskap))].sort();
+  const flyNå = filtrert.filter((f) => f.i_tidsvindu);
+  const tilgjengelige = [...new Set(alle.map((f) => f.flyselskap))].sort();
 
   return {
-    antall: filtered.length,
-    fly: filtered,
+    fly_nå: flyNå,
+    alle_fly_dag: filtrert,
     tilgjengelige_flyselskaper: tilgjengelige,
     tidspunkt: fmtOslo(now),
     vindu: `${fmtOslo(vinduStart)}–${fmtOslo(vinduSlutt)}`,
